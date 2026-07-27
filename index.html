@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Check-In System — AMSI Riau</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/html5-qrcode"></script>
+<style>
+  :root{
+    --navy-950:#070f22;
+    --navy-900:#0b1a35;
+    --navy-800:#13284d;
+    --navy-700:#1c3766;
+    --blue:#3e8ede;
+    --amber:#f5a623;
+    --crimson:#d64545;
+    --green:#3fae65;
+    --ink-0:#f4f7fb;
+    --ink-1:#aebbd6;
+    --ink-2:#7385ad;
+    --ok-bg:#0e3b2c; --ok-line:#3fae65; --ok-ink:#bdf5d3;
+    --warn-bg:#4a3208; --warn-line:#f5a623; --warn-ink:#ffe3ad;
+    --err-bg:#4a1414; --err-line:#d64545; --err-ink:#ffc7c7;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:var(--navy-950);
+    color:var(--ink-0);
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+    display:flex;
+    overflow-x:hidden;
+  }
+
+  .mono{font-family:'JetBrains Mono',monospace;letter-spacing:.02em;}
+
+  .shell{
+    display:flex;
+    width:100%;
+    min-height:100vh;
+  }
+
+  /* ---------- LEFT: hero / brand panel ---------- */
+  .hero{
+    position:relative;
+    flex:0 0 38%;
+    min-height:100vh;
+    background:#0a1730;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    justify-content:flex-end;
+  }
+  .hero-img{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    object-position:center;
+    opacity:.92;
+  }
+  .hero-scrim{
+    position:absolute; inset:0;
+    background:
+      linear-gradient(180deg, rgba(7,15,34,.15) 0%, rgba(7,15,34,.35) 55%, rgba(7,15,34,.96) 100%),
+      linear-gradient(90deg, rgba(7,15,34,.55) 0%, rgba(7,15,34,0) 35%);
+  }
+  .hero-content{
+    position:relative;
+    z-index:2;
+    padding:32px 32px 30px;
+  }
+  .hero-live{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:6px 12px;
+    border-radius:999px;
+    background:rgba(63,174,101,.12);
+    border:1px solid rgba(63,174,101,.4);
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    letter-spacing:.1em;
+    color:var(--ok-ink);
+    margin-bottom:18px;
+  }
+  .hero-live .dot{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--green);
+    animation:pulse-dot 2s infinite;
+  }
+  @keyframes pulse-dot{
+    0%{box-shadow:0 0 0 0 rgba(63,174,101,.55);}
+    70%{box-shadow:0 0 0 8px rgba(63,174,101,0);}
+    100%{box-shadow:0 0 0 0 rgba(63,174,101,0);}
+  }
+  .hero-title{
+    font-family:'Sora',sans-serif;
+    font-weight:700;
+    font-size:clamp(22px,2.6vw,30px);
+    line-height:1.22;
+    margin:0 0 16px;
+    color:var(--ink-0);
+  }
+  .hero-meta{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .hero-meta-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-size:13.5px;
+    color:var(--ink-1);
+  }
+  .hero-meta-row b{color:var(--ink-0);font-weight:600;}
+
+  .chevrons{
+    position:absolute;
+    top:0; bottom:0;
+    right:-1px;
+    width:34px;
+    z-index:3;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+  }
+  .chev{
+    width:0; height:0;
+    border-top:17px solid transparent;
+    border-bottom:17px solid transparent;
+    border-left:22px solid var(--c);
+    margin:-1px 0;
+    opacity:.9;
+    animation:chev-glide 3.6s ease-in-out infinite;
+    animation-delay:var(--d);
+  }
+  @keyframes chev-glide{
+    0%,100%{transform:translateX(0);}
+    50%{transform:translateX(6px);}
+  }
+
+  /* ---------- RIGHT: scanner panel ---------- */
+  .stage{
+    flex:1;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    padding:28px 40px 28px 56px;
+  }
+  .stage-top{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    margin-bottom:22px;
+  }
+  .stage-heading h1{
+    font-family:'Sora',sans-serif;
+    font-weight:700;
+    font-size:26px;
+    margin:0 0 4px;
+    letter-spacing:-.01em;
+  }
+  .stage-heading p{
+    margin:0;
+    color:var(--ink-2);
+    font-size:14px;
+  }
+  .clock{text-align:right;}
+  .clock .time{
+    font-family:'JetBrains Mono',monospace;
+    font-size:22px;
+    font-weight:500;
+    color:var(--ink-0);
+  }
+  .clock .date{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--ink-2);
+    margin-top:2px;
+  }
+
+  .cam-wrap{
+    position:relative;
+    flex:1;
+    min-height:320px;
+    border-radius:22px;
+    overflow:hidden;
+    background:#000;
+    border:1px solid var(--navy-700);
+    box-shadow:0 30px 60px -25px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.02);
+  }
+  .cam-wrap::before{
+    content:"";
+    position:absolute; inset:0;
+    z-index:5;
+    pointer-events:none;
+    border-radius:22px;
+    box-shadow:inset 0 0 0 1px rgba(62,142,222,.25);
+  }
+  .corner-frame{
+    position:absolute;
+    z-index:6;
+    width:34px; height:34px;
+    pointer-events:none;
+  }
+  .corner-frame.tl{top:18px;left:18px;border-top:3px solid var(--blue);border-left:3px solid var(--blue);border-radius:8px 0 0 0;}
+  .corner-frame.tr{top:18px;right:18px;border-top:3px solid var(--blue);border-right:3px solid var(--blue);border-radius:0 8px 0 0;}
+  .corner-frame.bl{bottom:18px;left:18px;border-bottom:3px solid var(--blue);border-left:3px solid var(--blue);border-radius:0 0 0 8px;}
+  .corner-frame.br{bottom:18px;right:18px;border-bottom:3px solid var(--blue);border-right:3px solid var(--blue);border-radius:0 0 8px 0;}
+
+  #reader{width:100%; height:100%;}
+  #reader video{width:100% !important; height:100% !important; object-fit:cover;}
+  #reader img{ display:none !important; }
+  #reader__scan_region{ background:transparent !important; }
+  #reader__dashboard{
+    position:absolute;
+    bottom:14px;
+    left:50%;
+    transform:translateX(-50%);
+    z-index:7;
+    background:rgba(7,15,34,.72);
+    backdrop-filter:blur(6px);
+    border-radius:12px;
+    padding:6px 10px;
+    border:1px solid var(--navy-700);
+  }
+  #reader__dashboard select, #reader__dashboard button{
+    font-family:'Inter',sans-serif !important;
+    border-radius:8px !important;
+  }
+  #reader__dashboard button{
+    background:var(--blue) !important;
+    color:var(--navy-950) !important;
+    border:none !important;
+    font-weight:600 !important;
+    padding:8px 16px !important;
+    cursor:pointer;
+  }
+
+  .status-line{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-top:14px;
+    font-size:12.5px;
+    color:var(--ink-2);
+  }
+  .status-line .sdot{width:6px;height:6px;border-radius:50%;background:var(--ink-2);}
+  .status-line.ready .sdot{background:var(--blue);animation:pulse-dot-blue 2s infinite;}
+  @keyframes pulse-dot-blue{
+    0%{box-shadow:0 0 0 0 rgba(62,142,222,.5);}
+    70%{box-shadow:0 0 0 7px rgba(62,142,222,0);}
+    100%{box-shadow:0 0 0 0 rgba(62,142,222,0);}
+  }
+  .status-line.busy .sdot{background:var(--amber);}
+  .status-line.down .sdot{background:var(--crimson);}
+
+  .result{
+    margin-top:18px;
+    border-radius:18px;
+    padding:22px 26px;
+    display:none;
+    align-items:center;
+    gap:20px;
+    animation:rise .32s cubic-bezier(.2,.8,.2,1);
+    border:1px solid transparent;
+  }
+  @keyframes rise{
+    from{opacity:0; transform:translateY(14px);}
+    to{opacity:1; transform:translateY(0);}
+  }
+  .result.success{background:var(--ok-bg);border-color:var(--ok-line);}
+  .result.warning{background:var(--warn-bg);border-color:var(--warn-line);}
+  .result.error{background:var(--err-bg);border-color:var(--err-line);}
+
+  .result-badge{
+    flex:0 0 auto;
+    width:52px;height:52px;
+    border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:24px;
+    background:rgba(255,255,255,.08);
+  }
+  .result-body{flex:1; min-width:0;}
+  .result-nama{
+    font-family:'Sora',sans-serif;
+    font-weight:700;
+    font-size:22px;
+    margin-bottom:2px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .result-instansi{font-size:14px; opacity:.85; margin-bottom:6px;}
+  .result-msg{font-size:13px; font-weight:600; letter-spacing:.01em;}
+  .result.success .result-nama, .result.success .result-msg{color:var(--ok-ink);}
+  .result.warning .result-nama, .result.warning .result-msg{color:var(--warn-ink);}
+  .result.error .result-nama, .result.error .result-msg{color:var(--err-ink);}
+
+  @media (max-width: 860px){
+    .shell{flex-direction:column;}
+    .hero{
+      flex:0 0 auto;
+      min-height:0;
+      height:30vh;
+      min-height:200px;
+    }
+    .chevrons{
+      top:auto; left:0; right:0; bottom:-1px;
+      width:100%; height:26px;
+      flex-direction:row;
+    }
+    .chev{
+      border-top:none; border-bottom:none;
+      border-left:17px solid transparent;
+      border-right:17px solid transparent;
+      border-top-width:22px; border-top-style:solid; border-top-color:var(--c);
+      margin:0 -1px;
+    }
+    .hero-content{padding:20px 22px 22px;}
+    .hero-title{font-size:18px; margin-bottom:10px;}
+    .hero-meta-row{font-size:12.5px;}
+    .stage{flex:1; padding:22px 18px 22px;}
+    .stage-heading h1{font-size:20px;}
+    .clock .time{font-size:18px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <aside class="hero">
+    <img class="hero-img" src="E-TICKET_AMSI_RIAU.jpg" alt="AMSI Riau">
+    <div class="hero-scrim"></div>
+    <div class="hero-content">
+      <span class="hero-live"><span class="dot"></span>CHECK-IN AKTIF</span>
+      <h2 class="hero-title">Pemanfaatan Artificial Intelligence<br>untuk Produksi Konten Multimedia</h2>
+      <div class="hero-meta">
+        <div class="hero-meta-row">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3e8ede" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+          <b>27 Agustus 2026</b>&nbsp;· 09.00–16.00 WIB
+        </div>
+        <div class="hero-meta-row">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3e8ede" stroke-width="2"><path d="M12 21s-7-6.1-7-11a7 7 0 0 1 14 0c0 4.9-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+          Hotel Pangeran, Pekanbaru
+        </div>
+      </div>
+    </div>
+    <div class="chevrons" aria-hidden="true">
+      <div class="chev" style="--c:#3e8ede; --d:0s"></div>
+      <div class="chev" style="--c:#f5a623; --d:.15s"></div>
+      <div class="chev" style="--c:#d64545; --d:.3s"></div>
+    </div>
+  </aside>
+
+  <main class="stage">
+    <div class="stage-top">
+      <div class="stage-heading">
+        <h1>E-Ticket Check-In</h1>
+        <p>Arahkan QR code peserta ke kamera</p>
+      </div>
+      <div class="clock">
+        <div class="time mono" id="clock-time">--:--:--</div>
+        <div class="date mono" id="clock-date">-</div>
+      </div>
+    </div>
+
+    <div class="cam-wrap">
+      <div class="corner-frame tl"></div>
+      <div class="corner-frame tr"></div>
+      <div class="corner-frame bl"></div>
+      <div class="corner-frame br"></div>
+      <div id="reader"></div>
+    </div>
+
+    <div class="status-line ready" id="status-line">
+      <span class="sdot"></span>
+      <span id="status-text">Menghubungkan ke server...</span>
+    </div>
+
+    <div class="result" id="result-box">
+      <div class="result-badge" id="res-badge">✓</div>
+      <div class="result-body">
+        <div class="result-nama" id="res-nama"></div>
+        <div class="result-instansi" id="res-instansi"></div>
+        <div class="result-msg" id="res-msg"></div>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<script>
+  // =====================================================================
+  // GANTI DENGAN URL WEB APP APPS SCRIPT ANDA (yang berakhiran /exec)
+  // =====================================================================
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwlTBeRm4B3SBayZGPj27_HWcXAzgTo4LBzA4Mj5JePw_P0uTC0UhRnKDU8YxlgQGO4/exec";
+
+  let isProcessing = false;
+  const statusLine = document.getElementById('status-line');
+  const statusText = document.getElementById('status-text');
+
+  function setStatus(mode, text){
+    statusLine.className = 'status-line ' + mode;
+    statusText.textContent = text;
+  }
+
+  function tickClock(){
+    const now = new Date();
+    document.getElementById('clock-time').textContent =
+      now.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    document.getElementById('clock-date').textContent =
+      now.toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  fetch(SCRIPT_URL + "?action=test")
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === 'OK') setStatus('ready', 'Siap memindai QR code...');
+      else setStatus('down', 'Server merespons tapi status tidak dikenal.');
+    })
+    .catch(() => setStatus('down', 'Gagal terhubung ke server — cek deployment Apps Script Anda.'));
+
+  function playAudioBeep(){
+    try{
+      let ctx = new (window.AudioContext || window.webkitAudioContext)();
+      let osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(800, ctx.currentTime);
+      osc.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    }catch(e){}
+  }
+
+  function onScanSuccess(decodedText){
+    if (isProcessing) return;
+    isProcessing = true;
+    playAudioBeep();
+    setStatus('busy', 'Memproses...');
+
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ qrText: decodedText })
+    })
+      .then(res => res.json())
+      .then(showResult)
+      .catch(err => {
+        setStatus('down', 'Gagal terhubung ke server: ' + err.message);
+        isProcessing = false;
+      });
+  }
+
+  function showResult(res){
+    let box = document.getElementById('result-box');
+    let badge = document.getElementById('res-badge');
+    let namaEl = document.getElementById('res-nama');
+    let instansiEl = document.getElementById('res-instansi');
+    let msgEl = document.getElementById('res-msg');
+
+    box.style.display = 'flex';
+
+    if (res.status === 'SUCCESS'){
+      box.className = 'result success';
+      badge.textContent = '✓';
+      namaEl.textContent = res.nama;
+      instansiEl.textContent = res.instansi;
+      msgEl.textContent = res.message;
+      setStatus('busy', 'Registrasi berhasil');
+    } else if (res.status === 'ALREADY_CHECKED_IN'){
+      box.className = 'result warning';
+      badge.textContent = '⚠';
+      namaEl.textContent = res.nama;
+      instansiEl.textContent = res.instansi;
+      msgEl.textContent = res.message;
+      setStatus('busy', 'Sudah check-in sebelumnya');
+    } else {
+      box.className = 'result error';
+      badge.textContent = '✕';
+      namaEl.textContent = '';
+      instansiEl.textContent = '';
+      msgEl.textContent = res.message;
+      setStatus('busy', 'Tidak ditemukan');
+    }
+
+    setTimeout(() => {
+      box.style.display = 'none';
+      isProcessing = false;
+      setStatus('ready', 'Siap memindai QR code...');
+    }, 3500);
+  }
+
+  document.addEventListener("DOMContentLoaded", function(){
+    let html5QrcodeScanner = new Html5QrcodeScanner(
+      "reader",
+      {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        rememberLastUsedCamera: true,
+        supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
+      },
+      /* verbose= */ false
+    );
+    html5QrcodeScanner.render(onScanSuccess);
+  });
+</script>
+</body>
+</html>
