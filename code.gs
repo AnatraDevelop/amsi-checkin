@@ -1,7 +1,14 @@
+// ============================================================
+// KONFIGURASI — sesuaikan sekali di sini kalau struktur kolom berubah
+// ============================================================
+var SHEET_NAME   = "Table1";   // nama tab di spreadsheet DAFTAR HADIR
+var COL_NAMA     = 1;          // B (0-based)
+var COL_INSTANSI = 2;          // C
+var COL_STATUS   = 5;          // F  -> Status Kehadiran
+var COL_WAKTU    = 6;          // G  -> Waktu Check-In
+var COL_ID       = 7;          // H  -> ID
+
 function doGet(e) {
-  // Endpoint diagnostik: buka SCRIPT_URL + "?action=test" langsung di
-  // browser manapun untuk memastikan deployment ini hidup dan sudah versi
-  // terbaru (tanpa perlu kamera / halaman scanner sama sekali).
   if (e && e.parameter && e.parameter.action === 'test') {
     return ContentService
       .createTextOutput(JSON.stringify({
@@ -12,19 +19,11 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  // Fallback: tetap bisa dibuka langsung, tapi kamera kemungkinan tidak
-  // akan berfungsi di sini karena Apps Script merender halaman di dalam
-  // iframe internal yang tidak diberi izin "camera" oleh Google.
-  // Gunakan index.html versi hosting eksternal (GitHub Pages) untuk scanner.
   return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('Check-In System - AMSI Riau')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
 }
 
-// ============================================================
-// ENDPOINT API BACKEND (dipanggil via fetch() dari HTML yang
-// di-hosting terpisah, misalnya GitHub Pages / Firebase Hosting)
-// ============================================================
 function doPost(e) {
   var result;
   try {
@@ -44,23 +43,24 @@ function doPost(e) {
 }
 
 function processCheckIn(rawQrText) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Form_Responses");
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) {
-    sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0]; // Ambil sheet pertama jika nama beda
+    // fallback jaga-jaga kalau nama tab beda
+    sheet = ss.getSheets()[0];
   }
-  
+
   var data = sheet.getDataRange().getValues();
   var extractedId = extractIdFromQr(rawQrText);
-  
-  // Mencari ID di Kolom F (Index 5)
+
   for (var i = 1; i < data.length; i++) {
-    var rowId = data[i][5].toString().trim(); // Kolom F = Index 5
-    
-    if (rowId === extractedId) {
-      var nama = data[i][1];     // Kolom B = Index 1
-      var instansi = data[i][2]; // Kolom C = Index 2
-      var status = data[i][7];   // Kolom H = Index 7
-      
+    var rowId = data[i][COL_ID] ? data[i][COL_ID].toString().trim() : "";
+
+    if (rowId !== "" && rowId === extractedId) {
+      var nama = data[i][COL_NAMA];
+      var instansi = data[i][COL_INSTANSI];
+      var status = data[i][COL_STATUS];
+
       if (status === "Hadir") {
         return {
           status: "ALREADY_CHECKED_IN",
@@ -71,15 +71,15 @@ function processCheckIn(rawQrText) {
       } else {
         var now = new Date();
         var formattedDate = Utilities.formatDate(
-          now, 
-          SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 
+          now,
+          ss.getSpreadsheetTimeZone(),
           "dd/MM/yyyy HH:mm:ss"
         );
-        
-        // Update Status Kehadiran (Kolom H / Index 8) & Timestamp (Kolom I / Index 9)
-        sheet.getRange(i + 1, 8).setValue("Hadir");
-        sheet.getRange(i + 1, 9).setValue(formattedDate);
-        
+
+        // +1 karena getRange 1-based, +1 lagi karena kolom index 0-based -> 1-based
+        sheet.getRange(i + 1, COL_STATUS + 1).setValue("Hadir");
+        sheet.getRange(i + 1, COL_WAKTU + 1).setValue(formattedDate);
+
         return {
           status: "SUCCESS",
           nama: nama,
@@ -89,14 +89,13 @@ function processCheckIn(rawQrText) {
       }
     }
   }
-  
+
   return {
     status: "NOT_FOUND",
-    message: "ID Tiket Tidak Ditemukan!"
+    message: "ID Tiket Tidak Ditemukan! (ID discan: " + extractedId + ")"
   };
 }
 
-// Fungsi pembantu mengekstrak ID dari QR Code multi-baris
 function extractIdFromQr(text) {
   var str = text.toString().trim();
   if (str.indexOf("ID:") !== -1) {
@@ -107,5 +106,5 @@ function extractIdFromQr(text) {
       }
     }
   }
-  return str; // Jika QR hanya berisi ID langsung
+  return str;
 }
