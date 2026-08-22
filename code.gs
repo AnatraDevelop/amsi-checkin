@@ -1,22 +1,30 @@
 // ============================================================
-// KONFIGURASI — sesuaikan sekali di sini kalau struktur kolom berubah
+// KONFIGURASI
 // ============================================================
-var SHEET_NAME   = "Table1";   // nama tab di spreadsheet DAFTAR HADIR
-var COL_NAMA     = 1;          // B (0-based)
-var COL_INSTANSI = 2;          // C
-var COL_STATUS   = 5;          // F  -> Status Kehadiran
-var COL_WAKTU    = 6;          // G  -> Waktu Check-In
-var COL_ID       = 7;          // H  -> ID
+// Nama tab sheet Daftar Hadir
+var SHEET_NAME = "Table1";
+
+// Nama HEADER (baris pertama sheet) yang dicari otomatis.
+// Tidak lagi bergantung pada posisi/urutan kolom.
+// Sesuaikan teks ini persis dengan header di sheet Anda (tidak case-sensitive).
+var HEADER_NAMA     = "Nama";
+var HEADER_INSTANSI = "Instansi";
+var HEADER_STATUS   = "Status Kehadiran";
+var HEADER_WAKTU    = "Waktu Check-In";
+var HEADER_ID       = "ID";
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.action === 'test') {
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        status: "OK",
-        message: "Backend aktif dan siap menerima check-in.",
-        timestamp: new Date().toISOString()
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return jsonOutput({
+      status: "OK",
+      message: "Backend aktif dan siap menerima check-in.",
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Buka SCRIPT_URL + "?action=debug" di browser untuk cek pemetaan kolom
+  if (e && e.parameter && e.parameter.action === 'debug') {
+    return jsonOutput(debugSheetInfo());
   }
 
   return HtmlService.createHtmlOutputFromFile('Index')
@@ -28,40 +36,93 @@ function doPost(e) {
   var result;
   try {
     var payload = JSON.parse(e.postData.contents);
-    var rawQrText = payload.qrText;
-    result = processCheckIn(rawQrText);
+    result = processCheckIn(payload.qrText);
   } catch (err) {
     result = {
       status: "ERROR",
       message: "Gagal memproses permintaan: " + err.message
     };
   }
+  return jsonOutput(result);
+}
 
+function jsonOutput(obj) {
   return ContentService
-    .createTextOutput(JSON.stringify(result))
+    .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-function processCheckIn(rawQrText) {
+// Ambil sheet + data + hasil pemetaan kolom berdasarkan nama header
+function getSheetAndColumns() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SHEET_NAME);
-  if (!sheet) {
-    // fallback jaga-jaga kalau nama tab beda
-    sheet = ss.getSheets()[0];
+  var sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+  var data = sheet.getDataRange().getValues();
+
+  if (data.length === 0) {
+    throw new Error("Sheet '" + sheet.getName() + "' kosong.");
   }
 
-  var data = sheet.getDataRange().getValues();
+  var headers = data[0].map(function (h) {
+    return h.toString().trim().toLowerCase();
+  });
+
+  function findCol(name) {
+    var idx = headers.indexOf(name.toString().trim().toLowerCase());
+    if (idx === -1) {
+      throw new Error(
+        "Kolom header '" + name + "' tidak ditemukan. Header yang terbaca: [" + headers.join(", ") + "]"
+      );
+    }
+    return idx;
+  }
+
+  return {
+    sheet: sheet,
+    data: data,
+    col: {
+      nama: findCol(HEADER_NAMA),
+      instansi: findCol(HEADER_INSTANSI),
+      status: findCol(HEADER_STATUS),
+      waktu: findCol(HEADER_WAKTU),
+      id: findCol(HEADER_ID)
+    }
+  };
+}
+
+// Endpoint bantu untuk memastikan pemetaan kolom & data sudah benar
+function debugSheetInfo() {
+  try {
+    var ctx = getSheetAndColumns();
+    return {
+      status: "OK",
+      sheetName: ctx.sheet.getName(),
+      headers: ctx.data[0],
+      columnMapping: ctx.col,
+      totalDataRows: ctx.data.length - 1,
+      sampleRow: ctx.data.length > 1 ? ctx.data[1] : null
+    };
+  } catch (err) {
+    return { status: "ERROR", message: err.message };
+  }
+}
+
+function processCheckIn(rawQrText) {
+  var ctx = getSheetAndColumns();
+  var sheet = ctx.sheet;
+  var data = ctx.data;
+  var col = ctx.col;
+
   var extractedId = extractIdFromQr(rawQrText);
 
   for (var i = 1; i < data.length; i++) {
-    var rowId = data[i][COL_ID] ? data[i][COL_ID].toString().trim() : "";
+    var rowId = normalizeId(data[i][col.id]);
 
     if (rowId !== "" && rowId === extractedId) {
-      var nama = data[i][COL_NAMA];
-      var instansi = data[i][COL_INSTANSI];
-      var status = data[i][COL_STATUS];
+      var nama = data[i][col.nama];
+      var instansi = data[i][col.instansi];
+      var status = (data[i][col.status] || "").toString().trim().toLowerCase();
 
-      if (status === "Hadir") {
+      if (status === "hadir") {
         return {
           status: "ALREADY_CHECKED_IN",
           nama: nama,
@@ -72,13 +133,12 @@ function processCheckIn(rawQrText) {
         var now = new Date();
         var formattedDate = Utilities.formatDate(
           now,
-          ss.getSpreadsheetTimeZone(),
+          SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(),
           "dd/MM/yyyy HH:mm:ss"
         );
 
-        // +1 karena getRange 1-based, +1 lagi karena kolom index 0-based -> 1-based
-        sheet.getRange(i + 1, COL_STATUS + 1).setValue("Hadir");
-        sheet.getRange(i + 1, COL_WAKTU + 1).setValue(formattedDate);
+        sheet.getRange(i + 1, col.status + 1).setValue("Hadir");
+        sheet.getRange(i + 1, col.waktu + 1).setValue(formattedDate);
 
         return {
           status: "SUCCESS",
@@ -92,19 +152,24 @@ function processCheckIn(rawQrText) {
 
   return {
     status: "NOT_FOUND",
-    message: "ID Tiket Tidak Ditemukan! (ID discan: " + extractedId + ")"
+    message: "ID Tiket Tidak Ditemukan! (ID discan: '" + extractedId + "')"
   };
 }
 
+function normalizeId(val) {
+  if (val === null || val === undefined || val === "") return "";
+  return val.toString().trim();
+}
+
 function extractIdFromQr(text) {
-  var str = text.toString().trim();
+  var str = text.toString().replace(/\r\n/g, "\n").trim();
   if (str.indexOf("ID:") !== -1) {
     var lines = str.split("\n");
     for (var i = 0; i < lines.length; i++) {
       if (lines[i].indexOf("ID:") !== -1) {
-        return lines[i].replace("ID:", "").trim();
+        return normalizeId(lines[i].replace("ID:", ""));
       }
     }
   }
-  return str;
+  return normalizeId(str);
 }
