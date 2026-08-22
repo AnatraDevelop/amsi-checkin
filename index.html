@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Ticket Check-In</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Script untuk Scanner -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <!-- Script untuk Pop Up Alert -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Bagian Kiri: Banner Image -->
+        <div class="left-side">
+            <!-- Ganti 'banner.jpg' dengan nama file gambar Anda yang diupload ke Github -->
+            <img src="banner.jpg" alt="Banner Acara">
+        </div>
+
+        <!-- Bagian Kanan: Scanner -->
+        <div class="right-side">
+            <div class="header-right">
+                <div>
+                    <h2>E-Ticket Check-In</h2>
+                    <p>Arahkan QR code peserta ke kamera</p>
+                </div>
+                <div class="clock">
+                    <h1 id="time">00:00:00</h1>
+                    <p id="date">Hari, Tanggal</p>
+                </div>
+            </div>
+
+            <div class="scanner-container">
+                <div id="reader"></div>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
