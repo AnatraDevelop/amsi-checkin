@@ -454,27 +454,11 @@
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ qrText: decodedText })
     })
-      .then(res => res.text())
-      .then(rawText => {
-        // Selalu ambil sebagai text dulu, baru coba parse JSON.
-        // Kalau gagal parse, berarti server TIDAK mengembalikan JSON
-        // (biasanya karena redirect ke halaman login Google akibat
-        // izin deployment yang belum "Anyone", atau URL /exec sudah
-        // tidak sinkron dengan versi Code.gs terbaru).
-        console.log('[CheckIn] Raw response dari Apps Script:', rawText);
-        let data;
-        try {
-          data = JSON.parse(rawText);
-        } catch (parseErr) {
-          throw new Error('Respons server bukan JSON (cek Console browser). Kemungkinan deployment belum di-update atau akses belum "Anyone".');
-        }
-        showResult(data);
-      })
+      .then(res => res.json())
+      .then(showResult)
       .catch(err => {
-        console.error('[CheckIn] Gagal check-in:', err);
-        setStatus('down', 'Gagal terhubung ke server');
-        // Tetap tampilkan popup supaya error TIDAK diam-diam saja.
-        showResult({ status: 'ERROR', message: err.message });
+        setStatus('down', 'Gagal terhubung ke server: ' + err.message);
+        isProcessing = false;
       });
   }
 
