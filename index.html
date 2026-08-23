@@ -214,8 +214,29 @@
   .ov-error{background:rgba(58,20,20,0.92);}
   .ov-error .title{color:#f39189;}
 
+  .camera-select-row{
+    display:flex;gap:10px;margin-top:16px;align-items:center;
+  }
+  .camera-select-row label{
+    font-size:11.5px;color:var(--ink-dim);white-space:nowrap;
+    font-family:var(--font-mono);letter-spacing:.03em;
+  }
+  #cameraSelect{
+    flex:1;
+    background:rgba(255,255,255,0.05);
+    border:1px solid var(--glass-border);
+    color:var(--ink);
+    font-family:var(--font-body);
+    font-size:13px;
+    padding:9px 10px;
+    border-radius:10px;
+    outline:none;
+    cursor:pointer;
+  }
+  #cameraSelect:hover{background:rgba(255,255,255,0.08);}
+  #cameraSelect option{background:var(--navy-900);color:var(--ink);}
   .scan-controls{
-    display:flex;gap:10px;margin-top:16px;
+    display:flex;gap:10px;margin-top:12px;
   }
   .btn{
     font-family:var(--font-body);
@@ -353,6 +374,12 @@
         </div>
       </div>
 
+      <div class="camera-select-row">
+        <label for="cameraSelect">📷 Kamera</label>
+        <select id="cameraSelect">
+          <option value="">Memuat daftar kamera…</option>
+        </select>
+      </div>
       <div class="scan-controls">
         <button class="btn btn-primary" id="btnStart">▶ Aktifkan Kamera</button>
         <button class="btn" id="btnStop">Hentikan</button>
@@ -419,10 +446,64 @@ let lastDecoded = "";
 let lastDecodedAt = 0;
 let html5QrCode = null;
 let cameraRunning = false;
+let availableCameras = [];
+let selectedCameraId = null;
 
 const dot = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
 const recentList = document.getElementById('recentList');
+const cameraSelect = document.getElementById('cameraSelect');
+
+/* Beri label yang enak dibaca kalau nama kamera dari browser generik/kosong */
+function friendlyCameraLabel(cam, index){
+  const raw = (cam.label || '').trim();
+  if (raw) return raw;
+  return 'Kamera ' + (index + 1);
+}
+
+/* Tebak kamera mana yang sebaiknya jadi default: cari yang labelnya
+   mengandung "back"/"belakang"/"rear" dulu (biasanya kamera utama di HP/tablet) */
+function guessDefaultCamera(cams){
+  const backLike = cams.find(c => /back|rear|belakang|environment/i.test(c.label || ''));
+  return backLike ? backLike.id : (cams[0] ? cams[0].id : null);
+}
+
+async function loadCameraList(){
+  try{
+    const cams = await Html5Qrcode.getCameras();
+    availableCameras = cams || [];
+
+    cameraSelect.innerHTML = '';
+    if (availableCameras.length === 0){
+      cameraSelect.innerHTML = '<option value="">Tidak ada kamera terdeteksi</option>';
+      setStatus('Tidak ada kamera terdeteksi di perangkat ini', 'err');
+      return;
+    }
+
+    availableCameras.forEach((cam, i) => {
+      const opt = document.createElement('option');
+      opt.value = cam.id;
+      opt.textContent = friendlyCameraLabel(cam, i);
+      cameraSelect.appendChild(opt);
+    });
+
+    selectedCameraId = guessDefaultCamera(availableCameras);
+    cameraSelect.value = selectedCameraId;
+  } catch(err){
+    console.error('Gagal memuat daftar kamera:', err);
+    cameraSelect.innerHTML = '<option value="">Gagal memuat daftar kamera</option>';
+    setStatus('Gagal membaca daftar kamera: izin kamera mungkin belum diberikan', 'err');
+  }
+}
+
+cameraSelect.addEventListener('change', async () => {
+  selectedCameraId = cameraSelect.value;
+  if (cameraRunning){
+    // pindah kamera langsung tanpa perlu klik "Hentikan" dulu
+    await stopCamera();
+    await startCamera();
+  }
+});
 
 function setStatus(text, mode){
   statusText.textContent = text;
@@ -498,12 +579,20 @@ async function submitScan(decodedText){
       addRecentItem({ nama: data.nama || nama, instansi: data.instansi || instansi, status:'duplicate', note:'sudah check-in' });
       bumpCounter('duplicate');
       setStatus('Duplikat: ' + (data.nama || nama) + ' sudah check-in sebelumnya', 'err');
-    } else {
-      document.getElementById('ovErrSub').textContent = 'Data "' + decodedText + '" tidak ditemukan di daftar peserta';
+    } else if (data.status === 'not_found') {
+      document.getElementById('ovErrSub').textContent = data.message || ('Data "' + decodedText + '" tidak ditemukan di daftar peserta');
       showOverlay('error');
       addRecentItem({ nama, instansi, status:'error', note:'tidak ditemukan' });
       bumpCounter('error');
       setStatus('Tiket tidak ditemukan di database', 'err');
+    } else {
+      // status: "error" — masalah konfigurasi/server, bukan data peserta
+      document.getElementById('ovErrSub').textContent = 'Kesalahan server: ' + (data.message || 'tidak diketahui');
+      showOverlay('error');
+      addRecentItem({ nama, instansi, status:'error', note:'error server: ' + (data.message || '-') });
+      bumpCounter('error');
+      setStatus('Error backend: ' + (data.message || 'lihat console'), 'err');
+      console.error('Backend error:', data);
     }
   } catch(err){
     console.error(err);
@@ -527,17 +616,46 @@ async function startCamera(){
   if (APPS_SCRIPT_URL.includes('GANTI_DENGAN_URL')){
     setStatus('⚠ Isi dulu APPS_SCRIPT_URL di dalam kode', 'err');
   }
+
+  // Kalau daftar kamera belum sempat dimuat (mis. baru dapat izin), coba muat dulu
+  if (availableCameras.length === 0){
+    await loadCameraList();
+  }
+
+  // Sumber kamera: pakai deviceId yang dipilih user kalau ada,
+  // fallback ke facingMode "environment" (kamera belakang) kalau daftar kamera gagal terbaca
+  const cameraSource = selectedCameraId
+    ? { deviceId: { exact: selectedCameraId } }
+    : { facingMode: "environment" };
+
   html5QrCode = new Html5Qrcode("reader");
   try{
     setStatus('Meminta akses kamera…');
     await html5QrCode.start(
-      { facingMode: "environment" },
+      cameraSource,
       { fps: 10, qrbox: { width: 260, height: 260 } },
       onScanSuccess,
       () => {} // error per-frame diabaikan, ini normal saat belum ada QR di frame
     );
     cameraRunning = true;
-    setStatus('Kamera aktif — arahkan barcode tiket', 'live');
+
+    // Setelah kamera pertama kali jalan, browser biasanya sudah mengisi label kamera
+    // dengan benar (sebelum izin diberikan, label sering kosong) — refresh daftar & dropdown
+    const cams = await Html5Qrcode.getCameras().catch(() => []);
+    if (cams && cams.length){
+      availableCameras = cams;
+      cameraSelect.innerHTML = '';
+      availableCameras.forEach((cam, i) => {
+        const opt = document.createElement('option');
+        opt.value = cam.id;
+        opt.textContent = friendlyCameraLabel(cam, i);
+        cameraSelect.appendChild(opt);
+      });
+      cameraSelect.value = selectedCameraId || guessDefaultCamera(availableCameras);
+    }
+
+    const activeLabel = cameraSelect.options[cameraSelect.selectedIndex]?.textContent || '';
+    setStatus('Kamera aktif (' + activeLabel + ') — arahkan barcode tiket', 'live');
   } catch(err){
     console.error(err);
     setStatus('Gagal mengakses kamera: ' + err, 'err');
@@ -558,7 +676,8 @@ document.getElementById('btnStart').addEventListener('click', startCamera);
 document.getElementById('btnStop').addEventListener('click', stopCamera);
 
 // minta akses kamera otomatis begitu halaman dibuka
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
+  await loadCameraList();
   startCamera();
 });
 </script>
