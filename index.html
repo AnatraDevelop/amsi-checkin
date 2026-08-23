@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Check-in E-Ticket — AI untuk Produksi Konten Multimedia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --navy-950:#081b30;
+    --navy-900:#0b2447;
+    --navy-800:#123b65;
+    --navy-700:#1c4d80;
+    --ink:#e9f1fb;
+    --ink-dim:#a9bcd6;
+    --gold:#e8a33d;
+    --success:#2e9e5b;
+    --success-bg:#0f3324;
+    --error:#e05a4e;
+    --error-bg:#3a1414;
+    --warn:#e8a33d;
+    --warn-bg:#3a2a0f;
+    --glass:rgba(11,36,71,0.55);
+    --glass-border:rgba(255,255,255,0.14);
+    --radius:18px;
+    --font-display:'Poppins',sans-serif;
+    --font-body:'Inter',sans-serif;
+    --font-mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    min-height:100vh;
+    font-family:var(--font-body);
+    color:var(--ink);
+    background:
+      radial-gradient(1100px 600px at 85% -10%, rgba(28,77,128,0.55), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(232,163,61,0.10), transparent 55%),
+      linear-gradient(180deg, var(--navy-950) 0%, var(--navy-900) 55%, #061626 100%);
+    overflow-x:hidden;
+  }
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:18px clamp(16px,4vw,48px);
+    border-bottom:1px solid rgba(255,255,255,0.08);
+  }
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand-dot{width:9px;height:9px;border-radius:50%;background:var(--gold);box-shadow:0 0 14px 2px rgba(232,163,61,0.7);}
+  .brand-text{font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);}
+  .clock-wrap{text-align:right;}
+  #clock-time{font-family:var(--font-mono);font-size:22px;font-weight:700;letter-spacing:.03em;}
+  #clock-date{font-size:12px;color:var(--ink-dim);margin-top:2px;}
+
+  /* ---------- hero (banner) ---------- */
+  .hero{
+    position:relative;
+    padding:0 clamp(16px,4vw,48px);
+    padding-top:28px;
+  }
+  .hero-banner{
+    position:relative;
+    border-radius:var(--radius);
+    overflow:hidden;
+    border:1px solid var(--glass-border);
+    box-shadow:0 30px 60px -25px rgba(0,0,0,0.6);
+  }
+  .hero-banner img{
+    width:100%;
+    display:block;
+    aspect-ratio:1536/1024;
+    object-fit:cover;
+  }
+  .hero-banner::after{
+    content:"";
+    position:absolute;inset:0;
+    background:linear-gradient(180deg, rgba(6,15,28,0) 40%, rgba(6,15,28,0.85) 100%);
+  }
+  .hero-caption{
+    position:absolute;
+    left:clamp(16px,4vw,40px);
+    bottom:18px;
+    right:clamp(16px,4vw,40px);
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:16px;
+    z-index:2;
+  }
+  .hero-caption h1{
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:clamp(14px,1.6vw,17px);
+    letter-spacing:.02em;
+    margin:0;
+    color:#fff;
+  }
+  .hero-badge{
+    font-family:var(--font-mono);
+    font-size:11px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    background:rgba(46,158,91,0.18);
+    border:1px solid rgba(46,158,91,0.5);
+    color:#8fe3b0;
+    padding:6px 12px;
+    border-radius:999px;
+    white-space:nowrap;
+  }
+
+  /* ---------- main grid ---------- */
+  .main{
+    display:grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap:24px;
+    padding:28px clamp(16px,4vw,48px) 60px;
+    align-items:start;
+  }
+  @media (max-width: 880px){
+    .main{grid-template-columns:1fr;}
+  }
+
+  .panel{
+    background:var(--glass);
+    backdrop-filter:blur(14px);
+    border:1px solid var(--glass-border);
+    border-radius:var(--radius);
+    padding:22px;
+  }
+  .panel h2{
+    font-family:var(--font-display);
+    font-size:15px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    margin:0 0 16px;
+    color:var(--ink-dim);
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .panel h2::before{
+    content:"";
+    width:16px;height:2px;
+    background:var(--gold);
+    display:inline-block;
+  }
+
+  /* ---------- scanner viewport ---------- */
+  .scan-stage{
+    position:relative;
+    border-radius:14px;
+    overflow:hidden;
+    background:#02070f;
+    aspect-ratio:1/1;
+    border:1px solid rgba(255,255,255,0.1);
+  }
+  #reader{width:100%;height:100%;}
+  #reader video{width:100% !important;height:100% !important;object-fit:cover;}
+
+  .viewfinder{
+    position:absolute;inset:0;
+    pointer-events:none;
+    display:flex;align-items:center;justify-content:center;
+    z-index:5;
+  }
+  .vf-box{
+    width:64%;height:64%;
+    position:relative;
+  }
+  .vf-corner{
+    position:absolute;width:34px;height:34px;
+    border:3px solid var(--gold);
+  }
+  .vf-corner.tl{top:0;left:0;border-right:none;border-bottom:none;border-radius:8px 0 0 0;}
+  .vf-corner.tr{top:0;right:0;border-left:none;border-bottom:none;border-radius:0 8px 0 0;}
+  .vf-corner.bl{bottom:0;left:0;border-right:none;border-top:none;border-radius:0 0 0 8px;}
+  .vf-corner.br{bottom:0;right:0;border-left:none;border-top:none;border-radius:0 0 8px 0;}
+  .vf-scanline{
+    position:absolute;left:4%;right:4%;height:2px;
+    background:linear-gradient(90deg, transparent, var(--gold), transparent);
+    top:0;
+    animation:scan 2.2s ease-in-out infinite;
+    box-shadow:0 0 10px 1px rgba(232,163,61,0.8);
+  }
+  @keyframes scan{
+    0%{top:6%;}
+    50%{top:94%;}
+    100%{top:6%;}
+  }
+
+  .scan-overlay-msg{
+    position:absolute;inset:0;
+    display:none;
+    align-items:center;justify-content:center;
+    text-align:center;
+    padding:24px;
+    z-index:10;
+    flex-direction:column;
+    gap:10px;
+  }
+  .scan-overlay-msg.show{display:flex;}
+  .scan-overlay-msg .icon{font-size:44px;line-height:1;}
+  .scan-overlay-msg .title{font-family:var(--font-display);font-weight:700;font-size:19px;}
+  .scan-overlay-msg .sub{font-size:13px;color:var(--ink-dim);}
+  .ov-success{background:rgba(15,51,36,0.92);}
+  .ov-success .title{color:#8fe3b0;}
+  .ov-duplicate{background:rgba(58,42,15,0.92);}
+  .ov-duplicate .title{color:#f2c568;}
+  .ov-error{background:rgba(58,20,20,0.92);}
+  .ov-error .title{color:#f39189;}
+
+  .scan-controls{
+    display:flex;gap:10px;margin-top:16px;
+  }
+  .btn{
+    font-family:var(--font-body);
+    font-weight:600;font-size:13px;
+    padding:11px 16px;border-radius:10px;
+    border:1px solid var(--glass-border);
+    background:rgba(255,255,255,0.04);
+    color:var(--ink);
+    cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    transition:background .15s ease, transform .1s ease;
+  }
+  .btn:hover{background:rgba(255,255,255,0.09);}
+  .btn:active{transform:scale(0.98);}
+  .btn-primary{
+    background:linear-gradient(135deg,var(--gold),#c97f22);
+    border:none;color:#1a1204;flex:1;
+  }
+  .btn-primary:hover{filter:brightness(1.05);}
+  .status-line{
+    margin-top:14px;
+    font-family:var(--font-mono);
+    font-size:12px;
+    color:var(--ink-dim);
+    display:flex;align-items:center;gap:8px;
+  }
+  .status-dot{width:8px;height:8px;border-radius:50%;background:#5a6b85;flex:none;}
+  .status-dot.live{background:var(--success);box-shadow:0 0 8px 1px rgba(46,158,91,0.7);}
+  .status-dot.err{background:var(--error);}
+
+  /* ---------- recent list ---------- */
+  .recent-list{
+    display:flex;flex-direction:column;gap:10px;
+    max-height:560px;overflow-y:auto;padding-right:4px;
+  }
+  .recent-list::-webkit-scrollbar{width:6px;}
+  .recent-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:6px;}
+  .recent-item{
+    display:flex;align-items:center;gap:12px;
+    padding:12px 14px;
+    border-radius:12px;
+    border:1px solid var(--glass-border);
+    background:rgba(255,255,255,0.03);
+  }
+  .recent-item.dup{border-color:rgba(232,163,61,0.4);background:rgba(232,163,61,0.06);}
+  .recent-item.err{border-color:rgba(224,90,78,0.4);background:rgba(224,90,78,0.06);}
+  .recent-avatar{
+    width:34px;height:34px;border-radius:50%;
+    background:var(--navy-700);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-display);font-weight:700;font-size:13px;
+    flex:none;
+  }
+  .recent-item.dup .recent-avatar{background:#5c451c;}
+  .recent-item.err .recent-avatar{background:#5c2620;}
+  .recent-meta{flex:1;min-width:0;}
+  .recent-name{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .recent-sub{font-size:11.5px;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .recent-time{font-family:var(--font-mono);font-size:11px;color:var(--ink-dim);flex:none;}
+  .empty-state{
+    text-align:center;color:var(--ink-dim);font-size:13px;
+    padding:40px 10px;
+  }
+  .counter-row{
+    display:flex;gap:10px;margin-bottom:16px;
+  }
+  .counter-card{
+    flex:1;border-radius:12px;padding:14px;
+    border:1px solid var(--glass-border);
+    background:rgba(255,255,255,0.03);
+    text-align:center;
+  }
+  .counter-num{font-family:var(--font-display);font-weight:800;font-size:26px;}
+  .counter-label{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim);margin-top:2px;}
+
+  footer{
+    text-align:center;padding:20px;
+    font-size:11.5px;color:var(--ink-dim);
+    border-top:1px solid rgba(255,255,255,0.06);
+  }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <span class="brand-text">AMSI Wilayah Riau × APHI Komda Riau</span>
+    </div>
+    <div class="clock-wrap">
+      <div id="clock-time">--:--:--</div>
+      <div id="clock-date">-</div>
+    </div>
+  </div>
+
+  <div class="hero">
+    <div class="hero-banner">
+      <img src="banner.jpg" alt="Pemanfaatan Artificial Intelligence untuk Produksi Konten Multimedia">
+      <div class="hero-caption">
+        <h1>Check-in Peserta — Scan E-Ticket di pintu masuk</h1>
+        <span class="hero-badge">Hotel Pangeran Pekanbaru · 09.00–16.00 WIB</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- Scanner Panel -->
+    <div class="panel">
+      <h2>Pindai Barcode Tiket</h2>
+      <div class="scan-stage">
+        <div id="reader"></div>
+        <div class="viewfinder">
+          <div class="vf-box">
+            <div class="vf-corner tl"></div>
+            <div class="vf-corner tr"></div>
+            <div class="vf-corner bl"></div>
+            <div class="vf-corner br"></div>
+            <div class="vf-scanline"></div>
+          </div>
+        </div>
+        <div id="overlaySuccess" class="scan-overlay-msg ov-success">
+          <div class="icon">✅</div>
+          <div class="title" id="ovSuccessName">-</div>
+          <div class="sub" id="ovSuccessSub">Check-in berhasil</div>
+        </div>
+        <div id="overlayDuplicate" class="scan-overlay-msg ov-duplicate">
+          <div class="icon">⚠️</div>
+          <div class="title">Sudah pernah scan</div>
+          <div class="sub" id="ovDupSub">-</div>
+        </div>
+        <div id="overlayError" class="scan-overlay-msg ov-error">
+          <div class="icon">✕</div>
+          <div class="title">Tiket tidak ditemukan</div>
+          <div class="sub" id="ovErrSub">Periksa kembali data peserta</div>
+        </div>
+      </div>
+
+      <div class="scan-controls">
+        <button class="btn btn-primary" id="btnStart">▶ Aktifkan Kamera</button>
+        <button class="btn" id="btnStop">Hentikan</button>
+      </div>
+      <div class="status-line">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Kamera belum aktif</span>
+      </div>
+    </div>
+
+    <!-- Recent Panel -->
+    <div class="panel">
+      <h2>Riwayat Check-in</h2>
+      <div class="counter-row">
+        <div class="counter-card">
+          <div class="counter-num" id="countSuccess">0</div>
+          <div class="counter-label">Hadir</div>
+        </div>
+        <div class="counter-card">
+          <div class="counter-num" id="countDuplicate">0</div>
+          <div class="counter-label">Duplikat</div>
+        </div>
+        <div class="counter-card">
+          <div class="counter-num" id="countError">0</div>
+          <div class="counter-label">Gagal</div>
+        </div>
+      </div>
+      <div class="recent-list" id="recentList">
+        <div class="empty-state">Belum ada peserta yang check-in.</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Pemanfaatan Artificial Intelligence untuk Produksi Konten Multimedia — Diselenggarakan oleh AMSI Wilayah Riau
+  </footer>
+
+<script>
+/* =====================================================================
+   KONFIGURASI — ganti nilai di bawah ini sesuai punya Anda
+   ===================================================================== */
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwKD9wwEzTIIsNW1La8CVTtBci8KQ0kLPWEXZ9AI9zXO3U3HJlV2325B-iVRItmfxhalw/exec"; // hasil deploy Apps Script (lihat panduan)
+const RESCAN_COOLDOWN_MS = 3500; // jeda sebelum QR yang sama boleh dipindai lagi
+
+/* ===================== Jam real-time (WIB) ===================== */
+function updateClock(){
+  const now = new Date();
+  const time = new Intl.DateTimeFormat('id-ID', {
+    hour:'2-digit', minute:'2-digit', second:'2-digit',
+    hour12:false, timeZone:'Asia/Jakarta'
+  }).format(now);
+  const date = new Intl.DateTimeFormat('id-ID', {
+    weekday:'long', day:'2-digit', month:'long', year:'numeric', timeZone:'Asia/Jakarta'
+  }).format(now);
+  document.getElementById('clock-time').textContent = time + ' WIB';
+  document.getElementById('clock-date').textContent = date;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+/* ===================== State ===================== */
+let counts = { success:0, duplicate:0, error:0 };
+let lastDecoded = "";
+let lastDecodedAt = 0;
+let html5QrCode = null;
+let cameraRunning = false;
+
+const dot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const recentList = document.getElementById('recentList');
+
+function setStatus(text, mode){
+  statusText.textContent = text;
+  dot.className = 'status-dot' + (mode === 'live' ? ' live' : mode === 'err' ? ' err' : '');
+}
+
+function showOverlay(kind, duration=2200){
+  ['overlaySuccess','overlayDuplicate','overlayError'].forEach(id=>{
+    document.getElementById(id).classList.remove('show');
+  });
+  const map = { success:'overlaySuccess', duplicate:'overlayDuplicate', error:'overlayError' };
+  const el = document.getElementById(map[kind]);
+  el.classList.add('show');
+  setTimeout(()=> el.classList.remove('show'), duration);
+}
+
+function initials(name){
+  return (name || '?').trim().split(/\s+/).slice(0,2).map(w=>w[0]?.toUpperCase()||'').join('');
+}
+
+function addRecentItem({ nama, instansi, status, note }){
+  const empty = recentList.querySelector('.empty-state');
+  if (empty) empty.remove();
+
+  const cls = status === 'success' ? '' : status === 'duplicate' ? 'dup' : 'err';
+  const timeStr = new Intl.DateTimeFormat('id-ID', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false, timeZone:'Asia/Jakarta' }).format(new Date());
+
+  const item = document.createElement('div');
+  item.className = 'recent-item ' + cls;
+  item.innerHTML = `
+    <div class="recent-avatar">${initials(nama)}</div>
+    <div class="recent-meta">
+      <div class="recent-name">${nama || '(tidak diketahui)'}</div>
+      <div class="recent-sub">${instansi || ''}${note ? ' · ' + note : ''}</div>
+    </div>
+    <div class="recent-time">${timeStr}</div>
+  `;
+  recentList.prepend(item);
+}
+
+function bumpCounter(kind){
+  counts[kind]++;
+  document.getElementById('countSuccess').textContent = counts.success;
+  document.getElementById('countDuplicate').textContent = counts.duplicate;
+  document.getElementById('countError').textContent = counts.error;
+}
+
+/* ===================== Kirim hasil scan ke Apps Script ===================== */
+async function submitScan(decodedText){
+  // Format QR: "Nama Lengkap - Asal Instansi/Media"
+  const parts = decodedText.split(' - ');
+  const nama = parts[0]?.trim() || decodedText.trim();
+  const instansi = parts.slice(1).join(' - ').trim();
+
+  try{
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // hindari CORS preflight
+      body: JSON.stringify({ nama, instansi, rawQr: decodedText })
+    });
+    const data = await res.json();
+
+    if (data.status === 'success'){
+      document.getElementById('ovSuccessName').textContent = data.nama || nama;
+      document.getElementById('ovSuccessSub').textContent = (data.ticketId ? data.ticketId + ' · ' : '') + 'Check-in berhasil';
+      showOverlay('success');
+      addRecentItem({ nama: data.nama || nama, instansi: data.instansi || instansi, status:'success' });
+      bumpCounter('success');
+      setStatus('Berhasil check-in: ' + (data.nama || nama), 'live');
+    } else if (data.status === 'duplicate'){
+      document.getElementById('ovDupSub').textContent = (data.nama || nama) + (data.scannedAt ? ' · sudah scan pukul ' + data.scannedAt : '');
+      showOverlay('duplicate');
+      addRecentItem({ nama: data.nama || nama, instansi: data.instansi || instansi, status:'duplicate', note:'sudah check-in' });
+      bumpCounter('duplicate');
+      setStatus('Duplikat: ' + (data.nama || nama) + ' sudah check-in sebelumnya', 'err');
+    } else {
+      document.getElementById('ovErrSub').textContent = 'Data "' + decodedText + '" tidak ditemukan di daftar peserta';
+      showOverlay('error');
+      addRecentItem({ nama, instansi, status:'error', note:'tidak ditemukan' });
+      bumpCounter('error');
+      setStatus('Tiket tidak ditemukan di database', 'err');
+    }
+  } catch(err){
+    console.error(err);
+    document.getElementById('ovErrSub').textContent = 'Gagal terhubung ke server. Periksa koneksi internet.';
+    showOverlay('error');
+    setStatus('Gagal terhubung ke server', 'err');
+  }
+}
+
+/* ===================== Kamera & QR decode ===================== */
+function onScanSuccess(decodedText){
+  const now = Date.now();
+  if (decodedText === lastDecoded && (now - lastDecodedAt) < RESCAN_COOLDOWN_MS) return;
+  lastDecoded = decodedText;
+  lastDecodedAt = now;
+  submitScan(decodedText);
+}
+
+async function startCamera(){
+  if (cameraRunning) return;
+  if (APPS_SCRIPT_URL.includes('GANTI_DENGAN_URL')){
+    setStatus('⚠ Isi dulu APPS_SCRIPT_URL di dalam kode', 'err');
+  }
+  html5QrCode = new Html5Qrcode("reader");
+  try{
+    setStatus('Meminta akses kamera…');
+    await html5QrCode.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 260, height: 260 } },
+      onScanSuccess,
+      () => {} // error per-frame diabaikan, ini normal saat belum ada QR di frame
+    );
+    cameraRunning = true;
+    setStatus('Kamera aktif — arahkan barcode tiket', 'live');
+  } catch(err){
+    console.error(err);
+    setStatus('Gagal mengakses kamera: ' + err, 'err');
+  }
+}
+
+async function stopCamera(){
+  if (!cameraRunning || !html5QrCode) return;
+  try{
+    await html5QrCode.stop();
+    html5QrCode.clear();
+  } catch(e){ /* ignore */ }
+  cameraRunning = false;
+  setStatus('Kamera dihentikan');
+}
+
+document.getElementById('btnStart').addEventListener('click', startCamera);
+document.getElementById('btnStop').addEventListener('click', stopCamera);
+
+// minta akses kamera otomatis begitu halaman dibuka
+window.addEventListener('load', () => {
+  startCamera();
+});
+</script>
+</body>
+</html>
